@@ -118,7 +118,7 @@ The `-c1 -m1G` arguments limit this Seastar-based test to a single system thread
 
 All changes to Scylla are submitted as patches to the public [mailing list](mailto:scylladb-dev@googlegroups.com). Once a patch is approved by one of the maintainers of the project, it is committed to the maintainers' copy of the repository at https://github.com/scylladb/scylla.
 
-Detailed instructions for formatting patches for the mailing list and advice on preparing good patches are available at the [ScyllaDB website](http://docs.scylladb.com/contribute/). There are also some guidelines that can help you make the patch review process smoother:
+Detailed instructions for formatting patches for the mailing list and advice on preparing good patches are available at the [ScyllaDB website](http://docs.scylladb.com/contribute/) (or [wiki](https://github.com/scylladb/scylla/wiki/Formatting-and-sending-patches)). There are also some guidelines that can help you make the patch review process smoother:
 
 1. Before generating patches, make sure your Git configuration points to `.gitorderfile`. You can do it by running
 
@@ -358,3 +358,46 @@ $ git checkout -t local/my_local_seastar_branch
 
 Slides:
 2018.11.20: https://www.slideshare.net/tomekgrabiec/scylla-core-dump-debugging-tools
+
+## Sending patches with git+gmail
+
+Git can be configured to use Gmail SMTP server to send patches:
+
+```
+git config sendemail.smtpencryption tls
+git config sendemail.smtpserver smtp.googlemail.com
+git config sendemail.smtpuser myemailaddr@gmail.com
+git config sendemail.smtpserverport 587
+```
+
+You can find more details on how to configure git to use Gmail here:
+
+http://morefedora.blogspot.se/2009/02/configuring-git-send-email-to-use-gmail.html
+
+You need an application-specific password if you use 2FA on your account.
+Without 2FA it is possible to work with LSA (less secure apps) enabled.
+You can generate an application-specific password and use that for git-send-email at:
+
+https://myaccount.google.com/apppasswords [[how](https://support.google.com/accounts/answer/185833)]
+
+After you sign in, select App ("Mail") and Device ("Other", followed by anything), then select "Generate".
+
+You can save SMTP password in your git configuration:
+
+```
+$ git config sendemail.smtppass "<password>"
+```
+
+### Arch Linux issues
+
+Arch has 2 issues related to the `git send-email`:
+
+- https://bugs.archlinux.org/task/36506 "Not using SSL_VERIFY_PEER due to out-of-date IO::Socket::SSL."
+- https://bugs.archlinux.org/task/20923 "Need MIME::Base64 and Authen::SASL todo auth at /usr/lib/git-core/git-send-email line 1093."
+
+To fix them and make `git send-email` work execute:
+
+```
+sudo pacman -S perl-io-socket-ssl perl-mime-tools perl-authen-sasl
+```
+
