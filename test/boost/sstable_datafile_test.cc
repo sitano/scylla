@@ -1065,17 +1065,21 @@ SEASTAR_TEST_CASE(autocompaction_control_test) {
         // check CompactionManager does not receive background compaction submissions
         cf->trigger_compaction();
         BOOST_REQUIRE(cm->get_stats().pending_tasks == 0 && cm->get_stats().active_tasks == 0);
+        BOOST_REQUIRE(cm->get_stats().refused_tasks == 1);
         cf->get_compaction_manager().submit(cf.get());
         BOOST_REQUIRE(cm->get_stats().pending_tasks == 0 && cm->get_stats().active_tasks == 0);
+        BOOST_REQUIRE(cm->get_stats().refused_tasks == 2);
         // enable auto compaction
         cf->enable_auto_compaction();
         // check enabled
         BOOST_REQUIRE(!cf->is_auto_compaction_disabled_by_user());
         // trigger background compaction
         cf->trigger_compaction();
-        BOOST_REQUIRE(cm->get_stats().pending_tasks == 1 || cm->get_stats().active_tasks == 1);
-
-        // XXX: test backlog state
+        // no new compaction jobs were refused
+        BOOST_REQUIRE(cm->get_stats().refused_tasks == 2);
+        cm->submit(cf.get());
+        // no new compaction jobs were refused
+        BOOST_REQUIRE(cm->get_stats().refused_tasks == 2);
 
         cm->stop().wait();
     });

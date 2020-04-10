@@ -516,6 +516,7 @@ inline bool compaction_manager::maybe_stop_on_error(future<> f, stop_iteration w
 
 void compaction_manager::submit(column_family* cf) {
     if (cf->is_auto_compaction_disabled_by_user()) {
+        _stats.refused_tasks++;
         return;
     }
 
@@ -526,6 +527,7 @@ void compaction_manager::submit(column_family* cf) {
 
     task->compaction_done = repeat([this, task, cf] () mutable {
         if (!can_proceed(task)) {
+            _stats.refused_tasks++;
             _stats.pending_tasks--;
             return make_ready_future<stop_iteration>(stop_iteration::yes);
         }
@@ -537,6 +539,7 @@ void compaction_manager::submit(column_family* cf) {
             int weight = trim_to_compact(&cf, descriptor);
 
             if (descriptor.sstables.empty() || !can_proceed(task) || cf.is_auto_compaction_disabled_by_user()) {
+                _stats.refused_tasks++;
                 _stats.pending_tasks--;
                 return make_ready_future<stop_iteration>(stop_iteration::yes);
             }

@@ -51,6 +51,7 @@ public:
     struct stats {
         int64_t pending_tasks = 0;
         int64_t completed_tasks = 0;
+        int64_t refused_tasks = 0; // Number of refused jobs.
         uint64_t active_tasks = 0; // Number of compaction going on.
         int64_t errors = 0;
     };
