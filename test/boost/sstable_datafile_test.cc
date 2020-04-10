@@ -1054,7 +1054,34 @@ SEASTAR_TEST_CASE(autocompaction_control_test) {
         auto tracker = make_lw_shared<cache_tracker>();
         auto cf = make_lw_shared<column_family>(s, cfg, column_family::no_commitlog(), *cm, *cl_stats, *tracker);
         cf->start();
-        cf->set_compaction_strategy(sstables::compaction_strategy_type::null);
+        cf->mark_ready_for_writes();
+        cf->set_compaction_strategy(sstables::compaction_strategy_type::size_tiered);
+
+        // create and add sstable
+        auto generations = make_lw_shared<std::vector<unsigned long>>({1, 2, 3, 4});
+
+        auto mt = make_lw_shared<memtable>(s);
+        const column_definition& r1_col = *s->get_column_definition("r1");
+
+        sstring k = "key1";
+        auto key = partition_key::from_exploded(*s, {to_bytes(k)});
+        auto c_key = clustering_key::from_exploded(*s, {to_bytes("abc")});
+
+        mutation m(s, key);
+        m.set_clustered_cell(c_key, r1_col, make_atomic_cell(int32_type, int32_type->decompose(1)));
+        mt->apply(std::move(m));
+
+        auto sst = env.make_sstable(s, tmp.path().string(), column_family_test::calculate_generation_for_new_table(*cf), la, big);
+
+        write_memtable_to_sstable_for_test(*mt, sst).then([mt, sst, cf] {
+            return sst->load().then([sst, cf] {
+                column_family_test(cf).add_sstable(sst);
+                return make_ready_future<>();
+            });
+        }).get();
+
+        BOOST_REQUIRE(cf->sstables_count() == 1);
+        BOOST_REQUIRE(cm->get_stats().completed_tasks == 1);
 
         // auto compaction is enabled by default
         BOOST_REQUIRE(!cf->is_auto_compaction_disabled_by_user());
@@ -1073,9 +1100,10 @@ SEASTAR_TEST_CASE(autocompaction_control_test) {
         BOOST_REQUIRE(!cf->is_auto_compaction_disabled_by_user());
         // trigger background compaction
         cf->trigger_compaction();
-        BOOST_REQUIRE(cm->get_stats().pending_tasks == 1 || cm->get_stats().active_tasks == 1);
-
-        // XXX: test backlog state
+        // wait until compaction finished
+        do_until([cm] { return cm->get_stats().completed_tasks == 1; }, [] {
+            return sleep(std::chrono::milliseconds(100));
+        }).get();
 
         cm->stop().wait();
     });
