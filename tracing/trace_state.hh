@@ -229,6 +229,10 @@ public:
         return _records->my_span_id;
     }
 
+    uint64_t records_size() const {
+        return _records->size();
+    }
+
 private:
     /**
      * Stop a foreground state and write pending records to I/O.
