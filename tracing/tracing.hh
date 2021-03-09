@@ -392,7 +392,15 @@ private:
     // after the shutdown() call and prevents further write attempts to I/O
     // backend.
     bool _down = true;
+    // If _slow_query_logging_enabled is enabled, a query processor keeps all
+    // trace events related to the query until in the end it can decide
+    // if the query was slow to be saved.
     bool _slow_query_logging_enabled = false;
+    // If _ignore_trace_events is enabled, tracing::trace ignores all tracing
+    // events and tracks only tracing sessions. This helps in case when one
+    // need to sample requests that have specific properties in a lightweight
+    // manner without the overhead of keeping all related tracing events.
+    bool _ignore_trace_events = false;
     std::unique_ptr<i_tracing_backend_helper> _tracing_backend_helper_ptr;
     sstring _thread_name;
     const backend_registry& _backend_registry;
@@ -588,6 +596,14 @@ public:
 
     bool slow_query_tracing_enabled() const {
         return _slow_query_logging_enabled;
+    }
+
+    void set_ignore_trace_events(bool enable = true) {
+        _ignore_trace_events = enable;
+    }
+
+    bool ignore_trace_events_enabled() const {
+        return _ignore_trace_events;
     }
 
     /**

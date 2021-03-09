@@ -103,6 +103,7 @@ private:
     sstring _request;
     int _pending_trace_events = 0;
     shared_ptr<tracing> _local_tracing_ptr;
+    bool _skip_events = false;
 
     struct params_values;
     struct params_values_deleter {
@@ -142,6 +143,7 @@ public:
 
         init_session_records(type, _local_tracing_ptr->slow_query_record_ttl());
         _slow_query_threshold = _local_tracing_ptr->slow_query_threshold();
+        _skip_events = _local_tracing_ptr->ignore_trace_events_enabled();
     }
 
     trace_state(const trace_info& info)
@@ -159,6 +161,7 @@ public:
         // inherit the slow query threshold and ttl from the coordinator
         init_session_records(info.type, std::chrono::seconds(info.slow_query_ttl_sec), info.session_id, info.parent_id);
         _slow_query_threshold = std::chrono::microseconds(info.slow_query_threshold_us);
+        _skip_events = _local_tracing_ptr->ignore_trace_events_enabled();
 
         trace_state_logger.trace("{}: props {}, slow query threshold {}us, slow query ttl {}s", session_id(), _state_props.mask(), info.slow_query_threshold_us, info.slow_query_ttl_sec);
     }
@@ -195,6 +198,10 @@ public:
 
     bool log_slow_query() const {
         return _state_props.contains(trace_state_props::log_slow_query);
+    }
+
+    inline bool log_events() const {
+        return !_skip_events;
     }
 
     trace_state_props_set raw_props() const {
@@ -684,7 +691,7 @@ inline void begin(const trace_state_ptr& p, A&&... a) {
  */
 template <typename... A>
 inline void trace(const trace_state_ptr& p, A&&... a) noexcept {
-    if (p) {
+    if (p && p->log_events()) {
         p->trace(std::forward<A>(a)...);
     }
 }
@@ -692,12 +699,12 @@ inline void trace(const trace_state_ptr& p, A&&... a) noexcept {
 inline std::optional<trace_info> make_trace_info(const trace_state_ptr& state) {
     // We want to trace the remote replicas' operations only when a full tracing
     // is requested or when a slow query logging is enabled and the session is
-    // still active.
+    // still active and only if the session events tracing is not explicitly disabled.
     //
     // When only a slow query logging is enabled we don't really care what
     // happens on a remote replica after a Client has received a response for
     // his/her query.
-    if (state && (state->full_tracing() || (state->log_slow_query() && !state->is_in_state(trace_state::state::background)))) {
+    if (state && state->log_events() && (state->full_tracing() || (state->log_slow_query() && !state->is_in_state(trace_state::state::background)))) {
         return trace_info{state->session_id(), state->type(), state->write_on_close(), state->raw_props(), state->slow_query_threshold_us(), state->slow_query_ttl_sec(), state->my_span_id()};
     }
 
